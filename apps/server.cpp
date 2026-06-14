@@ -1,38 +1,37 @@
 // server.cpp
 
 #include <iostream>   // std::cout, std::cerr
-#include <array>      // std::array fixed-size buffer
-#include <cstring>    // C string utilities, not heavily used here
+#include <string>
 #include <thread>
+#include <cerrno>
+#include <cstring>
 
 #include <sys/types.h>   // system data types used by sockets
 #include <sys/socket.h>  // socket(), bind(), listen(), accept(), recv(), send()
 #include <netdb.h>       // getaddrinfo(), freeaddrinfo(), gai_strerror(), addrinfo
 #include <unistd.h>      // close()
 
+#include "SocketUtils.h"
+
+// attempt to receive all bytes and put into buffer
+// repeat until specified length has been received
+
 
 void handleClient(int clientFd) {
-        std::array<char, 4096> buffer{};
-        
     while (true) {
-        ssize_t bytesReceived = recv(clientFd, buffer.data(), buffer.size(), 0);
-
-        if (bytesReceived == -1) {
-            std::cerr << "recv failed\n";
+        std::string messageBuffer;
+        if (!SocketUtils::recvMessage(clientFd, messageBuffer)) {
+            std::cerr << "Error recieving message.\n";
             break;
         }
 
-        if (bytesReceived == 0) {
-            std::cout << "Client disconnected\n";
+        // send back
+        if (!SocketUtils::sendMessage(clientFd, messageBuffer)) {
+            std::cerr << "Error sending message.\n";
             break;
         }
 
-        ssize_t bytesSent = send(clientFd, buffer.data(), bytesReceived, 0);
-
-        if (bytesSent == -1) {
-            std::cerr << "send failed\n";
-            break;
-        }
+        
     }
 
 
@@ -40,7 +39,7 @@ void handleClient(int clientFd) {
 
 }
 
-int main() {
+int main(int argc, char* argv[]) {
     /*
         addrinfo is used with getaddrinfo().
 
@@ -49,8 +48,8 @@ int main() {
     */
     addrinfo hints{};
 
-    hints.ai_family = AF_UNSPEC;
-    // AF_UNSPEC means: allow either IPv4 or IPv6.
+    hints.ai_family = AF_INET;
+    // AF_INET means: use IPv4 for this phase.
 
     hints.ai_socktype = SOCK_STREAM;
     // SOCK_STREAM means: TCP socket.
@@ -60,7 +59,9 @@ int main() {
 
     addrinfo* res = nullptr;
 
-    int status = getaddrinfo(nullptr, "8080", &hints, &res);
+    const char* port = argc > 1 ? argv[1] : "8080";
+
+    int status = getaddrinfo(nullptr, port, &hints, &res);
 
     if (status != 0) {
         std::cerr << "getaddrinfo error: " << gai_strerror(status) << "\n";
@@ -73,6 +74,7 @@ int main() {
         serverFd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
 
         if (serverFd == -1) {
+            std::cerr << "socket failed: " << std::strerror(errno) << "\n";
             // Failed to create socket for this address result.
             // Try the next result.
             continue;
@@ -80,13 +82,14 @@ int main() {
 
         int yes = 1;
         if (setsockopt(serverFd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1) {
-            std::cerr << "setsockopt failed\n";
+            std::cerr << "setsockopt failed: " << std::strerror(errno) << "\n";
             close(serverFd);
             serverFd = -1;
             continue;
         }
 
         if (bind(serverFd, p->ai_addr, p->ai_addrlen) == -1) {
+            std::cerr << "bind failed: " << std::strerror(errno) << "\n";
             close(serverFd);
             serverFd = -1;
             continue;
@@ -103,12 +106,12 @@ int main() {
     }
 
     if (listen(serverFd, SOMAXCONN) == -1) {
-        std::cerr << "listen failed\n";
+        std::cerr << "listen failed: " << std::strerror(errno) << "\n";
         close(serverFd);
         return 1;
     }
 
-    std::cout << "Server listening on port 8080...\n";
+    std::cout << "Server listening on port " << port << "...\n";
 
     while (true) {
         sockaddr_storage clientAddr{};
@@ -122,7 +125,7 @@ int main() {
         );
 
         if (clientFd == -1) {
-            std::cerr << "accept failed\n";
+            std::cerr << "accept failed: " << std::strerror(errno) << "\n";
             continue;
         }
 

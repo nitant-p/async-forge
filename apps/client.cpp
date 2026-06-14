@@ -1,13 +1,13 @@
 // client.cpp
 #include <iostream>
 #include <string>
-#include <array>
-#include <cstring>
 
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
 #include <unistd.h>
+
+#include "SocketUtils.h"
 
 int main() {
     addrinfo hints{};
@@ -50,26 +50,29 @@ int main() {
 
     while (true) {
         std::string message;
-        std::cout << "Enter message: ";
-        std::getline(std::cin, message);
+        while (true) {
 
-        ssize_t bytesSent = send(socketFd, message.data(), message.size(), 0);
-        if (bytesSent == -1) {
-            std::cerr << "send failed\n";
-            close(socketFd);
-            return 1;
+            std::cout << "Enter message: ";
+            std::getline(std::cin, message);
+
+            if (message.length() > MAX_MESSAGE_SIZE) {
+                std::cerr << "message is too large. please re-enter\n";
+            } else break;
         }
 
-        std::array<char, 4096> buffer{};
-        ssize_t bytesReceived = recv(socketFd, buffer.data(), buffer.size(), 0);
-
-        if (bytesReceived == -1) {
-            std::cerr << "recv failed\n";
-            close(socketFd);
-            return 1;
+        if (!SocketUtils::sendMessage(socketFd, message)) {
+            std::cerr << "Error sending message\n";
+            break;
         }
 
-        std::string response(buffer.data(), bytesReceived);
+
+        // get response now
+        std::string response; // write into here
+        if (!SocketUtils::recvMessage(socketFd, response)) {
+            std::cerr << "Error recieving response\n";
+            break;
+        }
+
         std::cout << "Server echoed: " << response << "\n";
     }
 

@@ -1,5 +1,8 @@
 # async-forge
 
+[![CI](https://github.com/nitant-p/async-forge/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/nitant-p/async-forge/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/nitant-p/async-forge/branch/main/graph/badge.svg)](https://codecov.io/gh/nitant-p/async-forge)
+
 `async-forge` is a learning project for building network servers in C++ step by step.
 
 The project starts with raw blocking TCP sockets, then grows through thread-per-client concurrency, length-prefixed message framing, a small Redis-like key-value server, a hand-written event loop, Boost.Asio callbacks, and finally C++20 coroutine-based async networking.
